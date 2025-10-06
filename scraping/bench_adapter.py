@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-import numpy as np
-from typing import Any, Union
+from typing import Any, Dict, List, Optional
 
 class BenchAdapter(ABC):
     """
@@ -13,16 +12,45 @@ class BenchAdapter(ABC):
 
 
     @abstractmethod
-    def start_scraping(self):
-
+    def best_cvss(metrics: Dict[str, Any] | None):
         pass
 
     @abstractmethod
-    def data_parsing(self):
+    def collect_products_from_node(root: Dict[str, Any], products: set):
+        pass
+    
+    @abstractmethod
+    def extract_cwes(self, weaknesses: Any):
+        pass
+    
+    @abstractmethod
+    def fetch_page(self, session: Any, params: Dict[str, Any], api_key: Optional[str], retries, backoff: float) -> Dict[str, Any]:
+        pass
 
+    @abstractmethod
+    def query_nvd(self, keywords: List[str], max_results: int, per_page: int, verbose:bool):
+        pass 
+
+    @abstractmethod
+    def extract_products(self, configurations: Any):
+        pass
+
+    @abstractmethod
+    def normalize(self, raw: list):
+        pass
+
+    @abstractmethod
+    def save_json(self, data: list, path: str, append: bool = False):
+        pass
+    
+    @abstractmethod
+    def save_csv(self, data: list, path: str, append: bool = False):
+        pass
+
+    @abstractmethod
+    def start_scraping(self):
         pass
 
     @abstractmethod
     def save(self):
-        
         pass

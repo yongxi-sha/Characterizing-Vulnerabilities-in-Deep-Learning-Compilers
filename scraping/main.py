@@ -1,8 +1,6 @@
 import argparse
 import sys
-sys.path.append('./adapters') 
-sys.path.append('./scraping') 
-from scraping.datascraping import start_scraping
+sys.path.append('./adapters') # Add the adapters directory to the system path
 from adapters.adapters import ADAPTERS
 
 def parse_args():
@@ -19,7 +17,6 @@ def main():
     AdapterClass = ADAPTERS[args.dataset]
     adapter = AdapterClass()
     adapter.start_scraping()
-    adapter.data_parsing()
     adapter.save()
 
 
