@@ -1,0 +1,13 @@
+README.md
+setup.py
+AI_related_dataset_scrapy.egg-info/PKG-INFO
+AI_related_dataset_scrapy.egg-info/SOURCES.txt
+AI_related_dataset_scrapy.egg-info/dependency_links.txt
+AI_related_dataset_scrapy.egg-info/entry_points.txt
+AI_related_dataset_scrapy.egg-info/top_level.txt
+adapters/__init__.py
+adapters/adapters.py
+adapters/cve_adapter.py
+scraping/__init__.py
+scraping/bench_adapter.py
+scraping/main.py

@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: AI-related-dataset-scrapy
+Version: 0.1.0
+Summary: Scraping data for AI security research
+Author: Yongxi Sha
+Author-email: yongxi.sha@usu.edu
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: requires-python
+Dynamic: summary
