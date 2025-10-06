@@ -1,0 +1,23 @@
+# Core
+# numpy
+
+# Fuzzing engine
+# atheris==2.1.0
+
+# Serialization
+# cloudpickle  # or just use built-in 'pickle' if preferred
+
+# Optional: for CLI parsing or config file loading
+# pyyaml        # if configs are in .yaml
+# configargparse  # if supporting config + CLI
+
+# VERAPAK dependencies (assumes you're importing from it)
+# Include VERAPAK's required packages if not in its Docker image
+# Example (edit based on VERAPAK actual requirements):
+# onnx
+# tensorflow  # if needed by VERAPAK or model format
+
+# Development & testing
+# pytest
+
+
