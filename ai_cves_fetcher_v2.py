@@ -178,16 +178,14 @@ def query_nvd(keywords: List[str], max_results: int, per_page: int, verbose: boo
     results: List[Dict[str, Any]] = []
     session = requests.Session()
 
-    batch_size = 5
-    keyword_batches = [keywords[i:i+batch_size] for i in range(0, len(keywords), batch_size)]
 
-    for kb in keyword_batches:
+    for kb in keywords:
         start = 0
         while True:
             params = {
                 "startIndex": start,
                 "resultsPerPage": per_page,
-                "keywordSearch": " OR ".join(kb),
+                "keywordSearch": kb,
             }
             if verbose:
                 print(f"[fetch] batch={kb} startIndex={start}")
