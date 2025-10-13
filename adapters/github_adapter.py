@@ -14,20 +14,20 @@ from scraping.bench_adapter import BenchAdapter
 
 @dataclass
 class GitHubIssue:
-    id: int
-    repository: str
-    number: int
-    title: str
-    state: str
-    labels: List[str]
-    is_pull_request: bool
-    created_at: str
-    updated_at: str
-    closed_at: Optional[str]
-    author: Optional[str]
-    comments: int
-    url: str
-    body: str
+    id: int #Unique GitHub numeric identifier for the issue/PR.
+    repository: str #Repository full name in owner/repo format.
+    number: int #Issue/PR number.
+    title: str #Issue/PR title.
+    state: str #State of the issue/PR (open, closed, etc.).
+    labels: List[str] #List of labels applied to the issue/PR.
+    is_pull_request: bool #True if the issue/PR is a pull request.
+    created_at: str #Date and time the issue/PR was created.
+    updated_at: str #Date and time the issue/PR was last updated.
+    closed_at: Optional[str] #Date and time the issue/PR was closed.
+    author: Optional[str] #Username of the author of the issue/PR.
+    comments: int #Number of comments on the issue/PR.  
+    url: str #URL of the issue/PR.
+    body: str #Body of the issue/PR.    
 
 
 class GitHubAdapter(BenchAdapter):
