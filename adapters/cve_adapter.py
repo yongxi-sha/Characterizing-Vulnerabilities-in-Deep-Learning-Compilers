@@ -11,16 +11,16 @@ from pathlib import Path
 
 @dataclass
 class CVEItem:
-    cve_id: str
-    published: str
-    last_modified: str
-    descriptions: str
-    severity: Optional[str]
-    cvss_score: Optional[float]
-    cvss_vector: Optional[str]
-    cwes: List[str]
-    products: List[str]
-    references: List[str]
+    cve_id: str # CVE ID
+    published: str # Published date
+    last_modified: str # Last modified date
+    descriptions: str # Description
+    severity: Optional[str] # Severity
+    cvss_score: Optional[float] # CVSS score
+    cvss_vector: Optional[str] # CVSS vector
+    cwes: List[str] # CWEs
+    products: List[str] # Products
+    references: List[str] # References
 
 class CVEAdapter(BenchAdapter):
 
