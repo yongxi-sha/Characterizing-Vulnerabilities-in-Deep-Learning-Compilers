@@ -5,7 +5,6 @@ import time
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 from pathlib import Path
-from urllib.parse import urlencode
 
 import requests
 
@@ -35,17 +34,60 @@ class GitHubAdapter(BenchAdapter):
     def __init__(self, dataset: str):
         super().__init__(dataset)
         self.keywords = [
-            "ai", "artificial intelligence", "machine learning", "deep learning", "neural network",
-            "large language model", "llm", "transformer model", "foundation model",
-            "prompt injection", "data poisoning", "model inversion", "membership inference",
-            "tensorflow", "keras", "pytorch", "onnx", "xgboost", "lightgbm",
-            "scikit-learn", "sklearn", "huggingface", "diffusers",
-            "openai", "anthropic", "cohere", "ollama", "vllm", "tensorRT", "mlflow", "ray serve",
         ]
-        self.base_url = "https://api.github.com/search/issues"
-        self.per_page = 100
-        self.max_results = 5000
+        self.graphql_url = "https://api.github.com/graphql"
+        self.max_results = 50000
         self.token = "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"
+        self.repos_list: List[dict[str, str]] = [
+            {
+                "owner": "apache",
+                "repo": "tvm",
+            },
+            {
+                "owner": "openxla",
+                "repo": "xla",
+            },
+            {
+                "owner": "microsoft",
+                "repo": "onnxruntime",
+            },
+            {
+                "owner": "openvinotoolkit",
+                "repo": "openvino",
+            },
+            {
+                "owner": "pytorch",
+                "repo": "glow",
+            },
+            {
+                "owner": "NVIDIA",
+                "repo": "TensorRT",
+            },
+            {
+                "owner": "NVIDIA",
+                "repo": "Fuser",
+            },
+            {
+                "owner": "pytorch",
+                "repo": "torchdynamo",
+            },
+            {
+                "owner": "plaidml",
+                "repo": "plaidml",
+            },
+            {
+                "owner": "Lightning-AI",
+                "repo": "lightning-thunder",
+            },
+            {
+                "owner": "ROCm",
+                "repo": "ROCm",
+            },
+            {
+                "owner": "triton-lang",
+                "repo": "triton",
+            }
+        ]
         self.path = Path(f"results/{self.dataset}")
         self.path.mkdir(parents=True, exist_ok=True)
         self._seen_urls: set[str] = set()
@@ -61,25 +103,34 @@ class GitHubAdapter(BenchAdapter):
     def extract_cwes(self, weaknesses: Any):
         return []
 
-    def fetch_page(self, session: requests.Session, params: Dict[str, Any], api_key: Optional[str], retries: int = 5, backoff: float = 1.5) -> Dict[str, Any]:
+    
+
+    def fetch_graphql(self, session: requests.Session, query: str, variables: Dict[str, Any] | None = None, retries: int = 5, backoff: float = 1.5) -> Dict[str, Any]:
+        if not self.token:
+            raise RuntimeError("GITHUB_TOKEN is required for GraphQL API")
         headers = {
             "User-Agent": "ai-github-issues-fetcher/1.0",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
+            "Authorization": f"Bearer {self.token}",
         }
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-        url = f"{self.base_url}?{urlencode(params, doseq=True)}"
+        body = {"query": query, "variables": variables or {}}
         last_err = "Unknown error"
         for attempt in range(retries):
             try:
-                resp = session.get(url, headers=headers, timeout=30)
+                resp = session.post(self.graphql_url, headers=headers, json=body, timeout=45)
                 status = resp.status_code
                 text_snippet = (resp.text or "")[:200]
-                # Successful
                 if status == 200:
-                    return resp.json()
-                # Rate limiting: 403 with remaining=0 or explicit 429
+                    data = resp.json()
+                    # GraphQL can return 200 with errors in payload
+                    if data.get("errors"):
+                        last_err = json.dumps(data.get("errors")[:1])
+                        # Some errors are transient rate limits
+                        # Fallthrough to retry below
+                    else:
+                        return data
+                # Rate limiting
                 rate_remaining = resp.headers.get("X-RateLimit-Remaining")
                 rate_reset = resp.headers.get("X-RateLimit-Reset")
                 if status in (403, 429) or (rate_remaining is not None and rate_remaining == "0"):
@@ -93,123 +144,137 @@ class GitHubAdapter(BenchAdapter):
                     print(last_err)
                     time.sleep(wait_seconds)
                     continue
-                # Server errors -> backoff retry
                 if status in (500, 502, 503, 504):
                     last_err = f"{status} server error: {text_snippet}"
                     time.sleep(backoff * (attempt + 1))
                     continue
-                # Other HTTP errors
                 last_err = f"{status} {text_snippet}"
             except Exception as e:
                 last_err = f"exception: {str(e)[:200]}"
-            # Backoff before next retry if not returned yet
             time.sleep(backoff * (attempt + 1))
-        raise RuntimeError(f"Failed to fetch: {last_err}")
+        raise RuntimeError(f"Failed GraphQL fetch: {last_err}")
 
     def query_nvd(self, keywords: List[str], max_results: int, per_page: int, verbose: bool = True):
-        # Not used for GitHub; map to GitHub search
-        return self.query_github(keywords, max_results, per_page, verbose)
+        # Not used for GitHub
+        return []
 
     def extract_products(self, configurations: Any):
         return []
 
-    def query_github(self, keywords: List[str], max_results: int, per_page: int, verbose: bool = True) -> List[Dict[str, Any]]:
+    def fetch_page(self, session: Any, params: Dict[str, Any], api_key: Optional[str], retries, backoff: float) -> Dict[str, Any]:
+        return {}
+
+    def search_graphql_repo(self, repo: Dict[str, str] | str, keyword: Optional[str], max_results: int, verbose: bool = True) -> List[Dict[str, Any]]:
+        """Fetch ALL issues in a repo using the repository issues connection (not Search),
+        which avoids the 1,000-result Search cap. Accepts either "owner/repo" or {owner, repo}.
+        The keyword parameter is ignored in this mode.
+        """
         session = requests.Session()
-        all_items: List[Dict[str, Any]] = []
-        per_page = min(max(per_page, 1), 100)
-        for kb in keywords:
-            # GitHub search qualifier: issues only, exclude PRs if desired; we will keep both then mark PRs
-            q = f"{kb} in:title,body"
-            page = 1
+        collected: List[Dict[str, Any]] = []
+        if isinstance(repo, dict):
+            owner = (repo.get("owner") or "").strip()
+            name = (repo.get("repo") or "").strip()
+            repo_slug = f"{owner}/{name}" if owner and name else ""
+        else:
+            repo_slug = str(repo).strip()
+            parts = repo_slug.split("/")
+            owner = parts[0] if len(parts) > 1 else ""
+            name = parts[1] if len(parts) > 1 else ""
+        if not owner or not name:
+            return []
+
+        def fetch_all_issues_for_states(states: List[str]) -> None:
+            cursor: Optional[str] = None
             while True:
-                params = {
-                    "q": q,
-                    "per_page": per_page,
-                    "page": page,
-                    "sort": "updated",
-                    "order": "desc",
-                }
                 if verbose:
-                    print(f"[github] keyword={kb} page={page}")
-                data = self.fetch_page(session, params, api_key=None)
-                items = data.get("items", [])
-                if not items:
+                    print(f"[github-graphql] repo={repo_slug} states={states} cursor={bool(cursor)}")
+                gql = (
+                    "query($owner:String!, $name:String!, $cursor:String, $states:[IssueState!]) {\n"
+                    "  repository(owner:$owner, name:$name) {\n"
+                    "    issues(first: 100, after: $cursor, states: $states, orderBy: {field: CREATED_AT, direction: ASC}) {\n"
+                    "      pageInfo { hasNextPage endCursor }\n"
+                    "      nodes {\n"
+                    "        __typename\n"
+                    "        databaseId\n"
+                    "        number\n"
+                    "        title\n"
+                    "        state\n"
+                    "        createdAt\n"
+                    "        updatedAt\n"
+                    "        closedAt\n"
+                    "        url\n"
+                    "        bodyText\n"
+                    "        author { login }\n"
+                    "        comments { totalCount }\n"
+                    "        labels(first: 50) { nodes { name } }\n"
+                    "        repository { nameWithOwner }\n"
+                    "      }\n"
+                    "    }\n"
+                    "  }\n"
+                    "}"
+                )
+                payload = {"owner": owner, "name": name, "cursor": cursor, "states": states}
+                data = self.fetch_graphql(session, gql, payload)
+                repo_data = (data.get("data") or {}).get("repository") or {}
+                issues = (repo_data.get("issues") or {})
+                nodes = issues.get("nodes") or []
+                if not nodes:
                     break
-                all_items.extend(items)
-                # GitHub search caps results to 1000 per query => page up to 10 when per_page=100
-                if len(items) < per_page or len(all_items) >= max_results or page >= 10:
+                collected.extend(nodes)
+                page_info = issues.get("pageInfo") or {}
+                has_next = page_info.get("hasNextPage")
+                cursor = page_info.get("endCursor")
+                if not has_next or len(collected) >= max_results:
                     break
-                page += 1
-                # Respect secondary rate limits
-                time.sleep(1.5 if self.token else 4.0)
-            if len(all_items) >= max_results:
-                break
-        # Deduplicate by unique issue URL
-        seen = set()
-        unique: List[Dict[str, Any]] = []
-        for it in all_items:
-            url = it.get("html_url") or it.get("url")
+                time.sleep(0.5)
+
+        # Fetch open and closed issues completely
+        fetch_all_issues_for_states(["OPEN"])
+        if len(collected) < max_results:
+            fetch_all_issues_for_states(["CLOSED"])
+
+        # Deduplicate by URL and truncate to max_results
+        seen: set[str] = set()
+        uniq: List[Dict[str, Any]] = []
+        for n in collected:
+            url = n.get("url")
             if url and url not in seen:
                 seen.add(url)
-                unique.append(it)
-        return unique[:max_results]
+                uniq.append(n)
+            if len(uniq) >= max_results:
+                break
+        return uniq
 
-    def query_github_single(self, keyword: str, per_page: int, verbose: bool = True) -> List[Dict[str, Any]]:
-        session = requests.Session()
-        per_page = min(max(per_page, 1), 100)
-        q = f"{keyword} in:title,body"
-        page = 1
-        collected: List[Dict[str, Any]] = []
-        while True:
-            params = {
-                "q": q,
-                "per_page": per_page,
-                "page": page,
-                "sort": "updated",
-                "order": "desc",
-            }
-            if verbose:
-                print(f"[github] keyword={keyword} page={page}")
-            data = self.fetch_page(session, params, api_key=None)
-            items = data.get("items", [])
-            if not items:
-                break
-            collected.extend(items)
-            if len(items) < per_page or page >= 10:
-                break
-            page += 1
-            time.sleep(1.5 if self.token else 4.0)
-        return collected
+    
 
     def normalize(self, items: List[Dict[str, Any]]) -> List[GitHubIssue]:
         norm: List[GitHubIssue] = []
         for it in items:
-            repository = ""
-            try:
-                # html_url like https://github.com/owner/repo/issues/123
-                html_url = it.get("html_url", "")
-                parts = html_url.split("/")
-                if len(parts) >= 7:
-                    repository = f"{parts[3]}/{parts[4]}"
-            except Exception:
-                repository = ""
-            labels = [lb.get("name") for lb in (it.get("labels") or []) if isinstance(lb, dict) and lb.get("name")]
-            is_pr = it.get("pull_request") is not None
-            body = it.get("body") or ""
+            # GraphQL search result node (Issue or PullRequest)
+            repository = ((it.get("repository") or {}).get("nameWithOwner")) or ""
+            labels = [lb.get("name") for lb in (((it.get("labels") or {}).get("nodes")) or []) if isinstance(lb, dict) and lb.get("name")]
+            typename = it.get("__typename") or ""
+            is_pr = typename == "PullRequest"
+            body = it.get("bodyText") or ""
+            comments_total = ((it.get("comments") or {}).get("totalCount")) or 0
+            dbid = it.get("databaseId")
+            if dbid is None:
+                # Fallback to number as identifier if databaseId missing
+                dbid = it.get("number")
             norm.append(GitHubIssue(
-                id=int(it.get("id")),
+                id=int(dbid),
                 repository=repository,
                 number=int(it.get("number")),
                 title=it.get("title") or "",
                 state=it.get("state") or "",
                 labels=labels,
                 is_pull_request=is_pr,
-                created_at=it.get("created_at") or "",
-                updated_at=it.get("updated_at") or "",
-                closed_at=it.get("closed_at"),
-                author=(it.get("user") or {}).get("login"),
-                comments=int(it.get("comments") or 0),
-                url=it.get("html_url") or it.get("url") or "",
+                created_at=it.get("createdAt") or "",
+                updated_at=it.get("updatedAt") or "",
+                closed_at=it.get("closedAt"),
+                author=((it.get("author") or {}).get("login")),
+                comments=int(comments_total or 0),
+                url=it.get("url") or "",
                 body=body.strip(),
             ))
         return norm
@@ -251,26 +316,40 @@ class GitHubAdapter(BenchAdapter):
                 ])
 
     def start_scraping(self):
-        json_path = f"{self.path}/issues.jsonl"
-        csv_path = f"{self.path}/issues.csv"
+
         self.norm = []
         self._seen_urls.clear()
-        for kb in self.keywords:
-            raw_items = self.query_github_single(kb, per_page=self.per_page, verbose=True)
-            # Deduplicate across the entire run by URL
-            new_items: List[Dict[str, Any]] = []
-            for it in raw_items:
-                url = it.get("html_url") or it.get("url")
-                if url and url not in self._seen_urls:
-                    self._seen_urls.add(url)
-                    new_items.append(it)
-            norm = self.normalize(new_items)
-            if norm:
-                # Save incrementally after each keyword
-                self.save_json(norm, json_path, append=True)
-                self.save_csv(norm, csv_path, append=True)
-                print(f"Saved {len(norm)} items for keyword '{kb}' to:\n - {json_path}\n - {csv_path}")
-            self.norm.extend(norm)
+        # Require repositories and token for GraphQL flow
+        if not self.repos_list:
+            raise RuntimeError("GITHUB_REPOS is required.")
+        if not self.token:
+            raise RuntimeError("GITHUB_TOKEN is required to use GraphQL.")
+        # If no keywords configured, still fetch by repo without keyword filter
+        keywords = self.keywords or [None]
+        for repo in self.repos_list:
+            csv_path = f"{self.path}/{repo['repo']}.csv"
+            if os.path.exists(csv_path):
+                continue
+            for kb in keywords:
+                raw_nodes = self.search_graphql_repo(repo, kb, max_results=self.max_results, verbose=True)
+                # Deduplicate by URL across entire run
+                new_nodes: List[Dict[str, Any]] = []
+                for node in raw_nodes:
+                    url = node.get("url")
+                    if url and url not in self._seen_urls:
+                        self._seen_urls.add(url)
+                        new_nodes.append(node)
+                norm = self.normalize(new_nodes)
+                if norm:
+                    self.save_csv(norm, csv_path, append=True)
+                    if isinstance(repo, dict):
+                        owner = (repo.get("owner") or "").strip()
+                        name = (repo.get("repo") or "").strip()
+                        repo_slug = f"{owner}/{name}" if owner and name else str(repo)
+                    else:
+                        repo_slug = str(repo)
+                    print(f"Saved {len(norm)} items for repo '{repo_slug}' keyword '{kb or ''}' to: - {csv_path}")
+                self.norm.extend(norm)
 
     def save(self):
         # Files already saved per keyword during start_scraping
