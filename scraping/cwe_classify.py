@@ -216,6 +216,7 @@ def run(input_csv: Path, output_csv: Path, summary_csv: Path, unmapped_csv: Path
     cwe_counts = Counter()
     unmapped = Counter()
     rows_per_category: dict[str, int] = defaultdict(int)
+    cves_per_category: dict[str, set[str]] = defaultdict(set)
 
     with input_csv.open("r", encoding="utf-8", errors="replace", newline="") as fin, \
             output_csv.open("w", encoding="utf-8", newline="") as fout:
@@ -228,6 +229,7 @@ def run(input_csv: Path, output_csv: Path, summary_csv: Path, unmapped_csv: Path
         writer.writeheader()
 
         for row in reader:
+            cve_id = (row.get("cve_id") or "").strip()
             cwe_ids = extract_cwe_ids(row.get("cwes", "") or "")
             if cwe_ids:
                 for cwe in cwe_ids:
@@ -243,6 +245,8 @@ def run(input_csv: Path, output_csv: Path, summary_csv: Path, unmapped_csv: Path
                 category_counts[c] += 1
             for c in set(cats):
                 rows_per_category[c] += 1
+                if cve_id:
+                    cves_per_category[c].add(cve_id)
 
             for cwe in cwe_ids:
                 if cwe not in CWE_TO_CATEGORY:
@@ -256,11 +260,12 @@ def run(input_csv: Path, output_csv: Path, summary_csv: Path, unmapped_csv: Path
     # Summary CSV: categories + top CWEs
     with summary_csv.open("w", encoding="utf-8", newline="") as fsum:
         w = csv.writer(fsum)
-        w.writerow(["type", "name", "count", "rows_with_category"])
+        w.writerow(["type", "name", "count", "rows_with_category", "cve_ids"])
         for cat, cnt in category_counts.most_common():
-            w.writerow(["category", cat, cnt, rows_per_category.get(cat, 0)])
+            cves = sorted(cves_per_category.get(cat, set()))
+            w.writerow(["category", cat, cnt, rows_per_category.get(cat, 0), ";".join(cves)])
         for cwe, cnt in cwe_counts.most_common():
-            w.writerow(["cwe", cwe, cnt, ""])
+            w.writerow(["cwe", cwe, cnt, "", ""])
 
     if unmapped_csv is not None:
         with unmapped_csv.open("w", encoding="utf-8", newline="") as fun:
