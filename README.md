@@ -7,7 +7,7 @@ results from repeated evaluations of compiler testing tools.
 
 ## Artifact at a glance
 
-- **27,730 raw GitHub records** collected from 13 AI compiler and runtime
+- **27,730 raw GitHub records** collected from 12 AI compiler and runtime
   repositories.
 - **621 curated vulnerability records** from Apache TVM (424), Glow (104), and
   XLA (93).
@@ -189,6 +189,30 @@ Outputs are written under `results/`. Before running a collector, review its
 repository list, query terms, rate limits, output paths, and API
 authentication in `adapters/`. Never commit API credentials.
 
+Collect AI-compiler CVEs from the NVD:
+
+```bash
+# Optional but recommended for a higher NVD rate limit:
+export NVD_API_KEY="your-nvd-api-key"
+
+python -m scraping.scrape_ai_compiler_cves
+```
+
+The command searches for all configured compilers and writes the deduplicated
+results to `datasets/raw dataset/CVE/ai_compiler_cves.csv`. To collect a
+subset or run a small trial:
+
+```bash
+python -m scraping.scrape_ai_compiler_cves \
+  --compiler tvm \
+  --compiler xla \
+  --max-results-per-query 10
+```
+
+Run `python -m scraping.scrape_ai_compiler_cves --help` for rate-limit,
+pagination, filtering, and output options. Without an NVD API key, the scraper
+uses the public API's slower request interval.
+
 Categorize an AI-related NVD dataset by CWE:
 
 ```bash
@@ -209,7 +233,7 @@ supplied datasets and caches when reproducing the reported artifact results.
 
 - The curated artifact is static; collection scripts query mutable external
   APIs.
-- Raw records cover 13 repositories, while the curated dataset covers TVM,
+- Raw records cover 12 repositories, while the curated dataset covers TVM,
   Glow, and XLA.
 - Labels produced or assisted by automated methods should be interpreted with
   the study's validation procedure.
