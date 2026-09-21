@@ -9,6 +9,7 @@ results from repeated evaluations of compiler testing tools.
 
 - **27,730 raw GitHub records** collected from 12 AI compiler and runtime
   repositories.
+- **75 CVE vulnerabilities** collected from AI-compiler related CVE database.
 - **621 curated vulnerability records** from Apache TVM (424), Glow (104), and
   XLA (93).
 - Curated labels for vulnerability type, root cause, impact, and affected
