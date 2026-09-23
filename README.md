@@ -1,4 +1,4 @@
-# Characterizing-Vulnerabilities-in-Deep-Learning-Compilers-Artifact
+# Characterizing Vulnerabilities in Deep Learning Compilers Artifact
 
 This repository contains the datasets and research code for an empirical study
 of vulnerabilities in AI compilers. The artifact includes raw GitHub issue
