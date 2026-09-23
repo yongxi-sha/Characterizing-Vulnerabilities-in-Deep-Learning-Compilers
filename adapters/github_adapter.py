@@ -37,7 +37,7 @@ class GitHubAdapter(BenchAdapter):
         ]
         self.graphql_url = "https://api.github.com/graphql"
         self.max_results = 50000
-        self.token = "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"
+        self.token = os.getenv("GITHUB_TOKEN")
         self.repos_list: List[dict[str, str]] = [
             {
                 "owner": "apache",

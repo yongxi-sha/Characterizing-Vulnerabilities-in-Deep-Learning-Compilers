@@ -35,7 +35,7 @@ class CVEAdapter(BenchAdapter):
             "scikit-learn", "sklearn", "huggingface", "diffusers",
             "openai", "anthropic", "cohere", "ollama", "vllm", "tensorRT", "mlflow", "ray serve",
         ]
-        self.api_key="cf44acd1-1751-4091-b761-ac153f1a2b6c"
+        self.api_key = os.getenv("NVD_API_KEY")
         self.url="https://services.nvd.nist.gov/rest/json/cves/2.0"
         self.path=Path(f"results/{self.dataset}")
         self.path.mkdir(parents=True, exist_ok=True)
