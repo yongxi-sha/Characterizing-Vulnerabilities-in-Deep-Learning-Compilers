@@ -1,1 +1,4 @@
-build/\nAI_related_dataset_scrapy.egg-info/*
+build/
+AI_related_dataset_scrapy.egg-info/*
+.DS_Store
+.gitkeep
